@@ -1,0 +1,401 @@
+* @ValidationCode : N/A
+* @ValidationInfo : Timestamp : 19 Jan 2021 11:14:56
+* @ValidationInfo : Encoding : Cp1252
+* @ValidationInfo : User Name : N/A
+* @ValidationInfo : Nb tests success : N/A
+* @ValidationInfo : Nb tests failure : N/A
+* @ValidationInfo : Rating : N/A
+* @ValidationInfo : Coverage : N/A
+* @ValidationInfo : Strict flag : N/A
+* @ValidationInfo : Bypass GateKeeper : false
+* @ValidationInfo : Compiler Version : N/A
+* @ValidationInfo : Copyright Temenos Headquarters SA 1993-2021. All rights reserved.
+
+* Version 4 02/06/00  GLOBUS Release No. 200508 30/06/05
+*-----------------------------------------------------------------------------
+* <Rating>1185</Rating>
+*-----------------------------------------------------------------------------
+    $PACKAGE LC.Schedules
+      SUBROUTINE CONV.DR.DEL(DR.REC, LC.REC, LC.TYPE.REC, LC.PARA.REC, DR.ID)
+
+*Modifications
+*
+**************************************************************
+*
+*17/05/00 - GB0001257
+*           Jbase changes.
+*           WRITE should be followed by key word ON ERROR and not "ELSE"
+*29/05/00 - GB0001333
+*           jBASE changes. EQU - LIT was replaced by EQU TO.
+*
+*************************************************************************
+$INSERT I_COMMON
+$INSERT I_EQUATE
+
+*// DRAWINGS
+      EQU TF.DR.DRAW.CURRENCY TO 2
+      EQU TF.DR.REIMBURSE.SENT TO 85
+      EQU TF.DR.DISCOUNT.AMT TO 14
+      EQU TF.DR.PROV.AMT.REL TO 99
+      EQU TF.DR.MATURITY.REVIEW TO 7
+      EQU TF.DR.VALUE.DATE TO 11
+      EQU TF.DR.DRAWDOWN.ACCOUNT TO 17
+      EQU TF.DR.PAYMENT.METHOD TO 18
+      EQU TF.DR.PAYMENT.ACCOUNT TO 19
+      EQU TF.DR.RECEIVERS.CORR TO 23
+      EQU TF.DR.RECEIVERS.BANK TO 22
+      EQU TF.DR.PRESENTOR.CUST TO 27
+      EQU TF.DR.PRESENTOR TO 28
+      EQU TF.DR.ACTIVITY.SENT TO 117
+      EQU TF.DR.ADVIS.SCHEDULE TO 118
+      EQU TF.DR.CLASS.SCHED TO 119
+      EQU TF.DR.EB.ADV.NO TO 120
+      EQU TF.DR.MSG.CLASS.NO TO 122
+      EQU TF.DR.SEND.NOTICE TO 123
+
+*// LETTER.OF.CREDIT
+      EQU TF.LC.BENEFICIARY.CUSTNO TO 12
+      EQU TF.LC.BENEFICIARY TO 13
+      EQU TF.LC.THIRD.PARTY.CUSTNO TO 46
+      EQU TF.LC.THIRD.PARTY TO 47
+      EQU TF.LC.ADVISE.THRU.CUSTNO TO 49
+      EQU TF.LC.ADVISE.THRU TO 50
+      EQU TF.LC.ACCOUNT.OFFICER TO 88
+      EQU TF.LC.PROVIS.ACC TO 138
+      EQU TF.LC.CREDIT.PROVIS.ACC TO 151
+
+*// LC.TYPES
+      EQU LC.TYP.IMPORT.EXPORT TO 3
+      EQU LC.TYP.DOC.COLLECTION TO 7
+      EQU LC.TYP.CLEAN.CREDIT TO 8
+      EQU LC.TYP.CLEAN.COLLECTION TO 9
+
+*// LC.PARAMETERS
+      EQU LC.PARA.LC.CLASS.TYPE TO 68
+      EQU LC.PARA.EB.CLASS.NO TO 69
+
+*// CUSTOMER
+      EQU EB.CUS.RESIDENCE TO 17
+
+*// AGENCY
+      EQU EB.AG.NOSTRO.ACCT.NO TO 1
+
+*// ACCOUNT
+      EQU AC.CUSTOMER TO 1
+      EQU AC.CURRENCY TO 8
+
+*// EB.ADVICES
+      EQU EB.ADV.MSG.CLASS TO 3
+
+*// General Constant Definition
+      EQU TRUE TO 1
+      EQU FALSE TO 0
+      EQU CUSTOMER.TYPE TO 0
+      EQU BANK.TYPE TO 1
+      EQU UNIDENTIFY.TYPE TO 2
+
+*// Party Definition
+      EQU PRESENT.PARTY TO IF DR.REC<TF.DR.PRESENTOR.CUST> THEN DR.REC<TF.DR.PRESENTOR.CUST> ELSE DR.REC<TF.DR.PRESENTOR>
+      EQU ADVIS.THRU.BNK TO IF LC.REC<TF.LC.ADVISE.THRU.CUSTNO> THEN LC.REC<TF.LC.ADVISE.THRU.CUSTNO> ELSE LC.REC<TF.LC.ADVISE.THRU>
+      EQU BENEFICIARY TO IF LC.REC<TF.LC.BENEFICIARY.CUSTNO> THEN LC.REC<TF.LC.BENEFICIARY.CUSTNO> ELSE LC.REC<TF.LC.BENEFICIARY>
+      EQU GET.CREDIT.CUST.NO LIT "CALL DBR('ACCOUNT':FM:AC.CUSTOMER, DR.REC<TF.DR.PAYMENT.ACCOUNT>, CUST.NO)"
+      EQU GET.DEBIT.CUST.NO LIT "CALL DBR('ACCOUNT':FM:AC.CUSTOMER, DR.REC<TF.DR.DRAWDOWN.ACCOUNT>, CUST.NO)"
+      EQU PAYMNT.METHOD TO DR.REC<TF.DR.PAYMENT.METHOD>
+      EQU SAME.RESIDENCE.AND.CCY.RESIDENCE TO (R.CORR.BNK<EB.CUS.RESIDENCE> = R.RECV.BNK<EB.CUS.RESIDENCE>) AND (R.RECV.BNK<EB.CUS.RESIDENCE> = DR.REC<TF.DR.DRAW.CURRENCY>[1,2])
+      EQU SCHEDULE.ID LIT "ACT.DATE:'.':DEP.NO:'.':ACT.NO"
+      EQU AGENCY.NOSTRO LIT "'AGENCY':FM:EB.AG.NOSTRO.ACCT.NO"
+*
+*// Start Processing
+*
+      GOSUB INITIALIZE
+
+      IMPORT.LC = LC.TYPE.REC<LC.TYP.IMPORT.EXPORT>[1,1] = 'I'
+      EXPORT.LC = LC.TYPE.REC<LC.TYP.IMPORT.EXPORT>[1,1] = 'E'
+      COL.FLG = IF LC.TYPE.REC<LC.TYP.DOC.COLLECTION>[1,1] = 'Y' OR LC.TYPE.REC<LC.TYP.CLEAN.CREDIT>[1,1] = 'Y' OR LC.TYPE.REC<LC.TYP.CLEAN.COLLECTION>[1,1] = 'Y' THEN TRUE ELSE FALSE
+
+      REIMB.SENT = DR.REC<TF.DR.REIMBURSE.SENT> # ''
+      DISCOUNT = DR.REC<TF.DR.DISCOUNT.AMT> > 0
+      MAT.DATE = DR.REC<TF.DR.MATURITY.REVIEW>
+      VAL.DATE = DR.REC<TF.DR.VALUE.DATE>
+
+      MT742.SET = IF LC.REC<TF.LC.THIRD.PARTY.CUSTNO> OR LC.REC<TF.LC.THIRD.PARTY> THEN TRUE ELSE FALSE
+      PROVIS.SET = DR.REC<TF.DR.PROV.AMT.REL> > 0
+      LC.PARA = LC.PARA.REC<LC.PARA.LC.CLASS.TYPE>
+      EB.PARA = LC.PARA.REC<LC.PARA.EB.CLASS.NO>
+      DEP.NO = FMT(LC.REC<TF.LC.ACCOUNT.OFFICER>, "4'0'L")
+
+      GOSUB INIT.ACTIVITY
+      GOSUB GET.MSG.CLASS
+      ETEXT = '' ; E = ''                ; * Clear Error
+*      FOR I = TF.DR.ACTIVITY.SENT TO TF.DR.SEND.NOTICE
+*         PRINT "DR.REC<":I:"> :":DR.REC<I>
+*      NEXT I
+      RETURN
+
+GET.MSG.CLASS:
+      NO.ACT = DCOUNT(DR.ADV.NO, VM)
+      *// Get Payment Class
+      GOSUB GET.CREDIT.PARTY
+      GOSUB ADD.PAYMENT.CLASS
+      GOSUB ADD.COVER.PAY.CLASS
+      GOSUB ADD.RECEIVE.CLASS
+      CALL MAP.MSG.CLASS.ARRAY(MSG.CLASS.LIST, LC.PARA, EB.PARA)
+      FOR IACT = 1 TO NO.ACT
+         ACT.NO = DR.ADV.NO<1,IACT>
+         R.ADV = ''
+         READ R.ADV FROM F$NAU.ADV, ACT.NO ELSE
+            READ R.ADV FROM F.ADV, ACT.NO ELSE
+               PRINT "CANNOT FIND EB.ADVICES ":ACT.NO
+               CONTINUE
+            END
+         END
+         CLASS.LIST = R.ADV<EB.ADV.MSG.CLASS>
+
+         *// Update Advice Schedules
+         BEGIN CASE
+            CASE ACT.NO[6,2] = '01'
+               DR.REC<TF.DR.EB.ADV.NO> = ACT.NO
+               GOSUB UPDATE.MSG.CLASS
+               DR.REC<TF.DR.MSG.CLASS.NO> = CLASSES
+               DR.REC<TF.DR.SEND.NOTICE> = YN.LIST
+            CASE 1
+               BEGIN CASE
+                  CASE ACT.NO[6,2] = '14' AND REIMB.SENT
+                     ACT.DATE = VAL.DATE
+                  CASE ACT.NO[6,2] = '16' AND REIMB.SENT
+                     ACT.DATE = VAL.DATE
+                  CASE ACT.NO[6,2] = '15' AND DISCOUNT
+                     ACT.DATE = VAL.DATE
+                  CASE 1
+                     ACT.DATE = MAT.DATE
+               END CASE
+               DR.REC<TF.DR.ADVIS.SCHEDULE, -1> = SCHEDULE.ID
+               GOSUB UPDATE.MSG.CLASS
+               DR.REC<TF.DR.CLASS.SCHED, -1> = CLASSES
+         END CASE
+
+         *// Update Sent Activity and DRAW.SCHEDULES table
+         BEGIN CASE
+            CASE ACT.NO[6,2] = '14' AND REIMB.SENT
+               DR.REC<TF.DR.ACTIVITY.SENT, -1> = VAL.DATE:'.':ACT.NO
+            CASE ACT.NO[6,2] = '16' AND REIMB.SENT
+               DR.REC<TF.DR.ACTIVITY.SENT, -1> = VAL.DATE:'.':ACT.NO
+            CASE ACT.NO[6,2] = '15' AND DISCOUNT
+               DR.REC<TF.DR.ACTIVITY.SENT, -1> = VAL.DATE:'.':ACT.NO
+            CASE ACT.NO[6,2] = '01'
+            CASE 1
+               GOSUB UPDATE.DRAW.SCHEDULES
+         END CASE
+      NEXT IACT
+      RETURN
+
+UPDATE.DRAW.SCHEDULES:
+      R.DRAW.SCH = ''
+      UPD.FLG = FALSE
+      READ R.DRAW.SCH FROM F.DRAW.SCH, MAT.DATE THEN
+         NO.ID = DCOUNT(R.DRAW.SCH, FM)
+         FOR II = 1 TO NO.ID
+            BEGIN CASE
+               CASE DR.ID = R.DRAW.SCH<II>
+                  UPD.FLG = TRUE
+               CASE DR.ID < R.DRAW.SCH<II>
+                  INS DR.ID BEFORE R.DRAW.SCH<II>
+                  UPD.FLG = TRUE
+            END CASE
+         UNTIL UPD.FLG
+         NEXT II
+         IF NOT(UPD.FLG) THEN
+            R.DRAW.SCH<-1> = DR.ID
+         END
+      END ELSE
+         R.DRAW.SCH<-1> = DR.ID
+      END
+      WRITE R.DRAW.SCH TO F.DRAW.SCH, MAT.DATE ON ERROR      ; *GB0001257
+         PRINT "UPDATE DRAW.SCHEDULES FAIL !!! "
+      END
+      RETURN
+
+UPDATE.MSG.CLASS:
+      CLASSES = ''
+      YN.LIST = ''
+      LOOP
+         CLASS = ''
+         REMOVE CLASS FROM CLASS.LIST SETTING FLG
+      WHILE CLASS:FLG DO
+         LOCATE CLASS IN MSG.CLASS.LIST<1,1> SETTING POS THEN
+            CLASSES<1,1,-1> = CLASS
+            YN.LIST<1,1,-1> = "YES"
+         END
+      REPEAT
+      RETURN
+
+ADD.PAYMENT.CLASS:
+      GOSUB IDENTIFY.PARTY.TYPE
+      IF PAYMNT.METHOD = "N" THEN
+         BEGIN CASE
+            CASE IS.BANK = BANK.TYPE AND PRESENT.PARTY
+               CLASS.TYPE = "PAYMENT.BANK"
+            CASE 1
+               CLASS.TYPE = "PAYMENT.CUST"
+         END CASE
+      END ELSE
+         BEGIN CASE
+            CASE IS.BANK = BANK.TYPE
+               CLASS.TYPE = "PAYMENT.CUST"
+            CASE IS.BANK = CUSTOMER.TYPE
+               CLASS.TYPE = "CREDIT.CUST"
+         END CASE
+      END
+      CLASS.SET = (IS.BANK # UNIDENTIFY.TYPE) OR IS.CUST
+      CALL UPDATE.CLASS.LIST(CLASS.TYPE, CLASS.SET)
+      RETURN
+
+ADD.COVER.PAY.CLASS:
+      CORR.BANK = DR.REC<TF.DR.RECEIVERS.CORR>
+      IF CORR.BANK THEN
+         CUST.NO = DR.REC<TF.DR.RECEIVERS.BANK>
+         GOSUB IDENTIFY.PARTY.TYPE
+         IF IS.BANK = BANK.TYPE THEN
+            IF NUM(CORR.BANK) THEN
+               PAY.ACCT = DR.REC<TF.DR.PAYMENT.ACCOUNT>
+               GOSUB CHECK.COVER.PAYMENT
+               IF PRODUCE.FLG THEN
+                  CLASS.SET = TRUE
+                  CLASS.TYPE = "COVER.BANK"
+                  CALL UPDATE.CLASS.LIST(CLASS.TYPE, CLASS.SET)
+               END
+            END ELSE
+               CLASS.TYPE = "PAYMENT.BANK"
+               CLASS.SET = TRUE
+               CALL UPDATE.CLASS.LIST(CLASS.TYPE, CLASS.SET)
+            END
+         END
+      END
+      RETURN
+
+ADD.RECEIVE.CLASS:
+      GET.DEBIT.CUST.NO
+      GOSUB IDENTIFY.PARTY.TYPE
+      CLASS.SET = TRUE
+      BEGIN CASE
+         CASE IS.BANK = BANK.TYPE
+            CLASS.TYPE = "RECEIVE.NOTIFY"
+            CALL UPDATE.CLASS.LIST(CLASS.TYPE, CLASS.SET)
+         CASE IS.BANK = CUSTOMER.TYPE
+            CLASS.TYPE = "DEBIT.CUST"
+            CALL UPDATE.CLASS.LIST(CLASS.TYPE, CLASS.SET)
+      END CASE
+      RETURN
+
+CHECK.COVER.PAYMENT:
+      FN.CU = 'F.CUSTOMER'
+      F.CU = ''
+      R.CORR.BNK = ''
+      R.RECV.BNK = ''
+      NOSTRO.ACCT = ''
+      PRODUCE.FLG = TRUE
+      CALL DBR(AGENCY.NOSTRO,CUST.NO,NOSTRO.ACCT.LISTS)
+      IF NOSTRO.ACCT.LISTS THEN
+         CALL OPF(FN.CU, F.CU)
+         CALL F.READ(FN.CU,CORR.BANK,R.CORR.BNK,F.CU,YERR)
+         CALL F.READ(FN.CU,CUST.NO,R.RECV.BNK,F.CU,YERR)
+         IF SAME.RESIDENCE.AND.CCY.RESIDENCE THEN
+            LOCATE PAY.ACCT IN NOSTRO.ACCT.LISTS<1> SETTING IND THEN
+               PRODUCE.FLG = FALSE
+            END
+         END
+      END
+      RETURN
+
+IDENTIFY.PARTY.TYPE:
+      IF NUM(CUST.NO) AND CUST.NO THEN
+         CALL CHECK.ACCOUNT.CLASS("BANK","",CUST.NO,"",RTN.CODE)
+         IF RTN.CODE = 'FATAL' THEN
+            IS.BANK = IF IS.CUST THEN CUSTOMER.TYPE ELSE UNIDENTIFY.TYPE
+         END ELSE
+            IS.BANK = RTN.CODE[1,1] = 'Y'          ; * 0-Cust, 1-Bank
+         END
+      END
+      RETURN
+
+GET.CREDIT.PARTY:                        ; * Segregate Imp/Exp
+      CUST.NO = PRESENT.PARTY
+      *// Take Advise Thru, if no presentor
+      IF NOT(CUST.NO) THEN
+         CUST.NO = ADVIS.THRU.BNK
+      END
+      *// Take Beneficiary, if no ADVISE.THRU.BANK
+      IF NOT(CUST.NO) THEN
+         IF IMPORT.LC THEN
+            CUST.NO = BENEFICIARY
+         END ELSE
+            IS.CUST = FALSE
+            GET.CREDIT.CUST.NO
+         END
+      END
+      RETURN
+
+RAISE.PROVISION.CLASS:
+      IS.CUST = FALSE
+      PROVISION.CLASS = 'PROVISION.CREDIT'
+      PROV.AC = LC.REC<TF.LC.PROVIS.ACC>
+      GOSUB UPDATE.PROVISION.CLASS
+      PROVISION.CLASS = 'PROVISION.DEBIT'
+      PROV.AC = LC.REC<TF.LC.CREDIT.PROVIS.ACC>
+      GOSUB UPDATE.PROVISION.CLASS
+      RETURN
+
+UPDATE.PROVISION.CLASS:
+      CUST.NO = ''
+      CALL DBR("ACCOUNT":FM:AC.CUSTOMER,PROV.AC,CUST.NO)
+      GOSUB IDENTIFY.PARTY.TYPE
+      IF IS.BANK = CUSTOMER.TYPE THEN
+         CLASS.TYPE = PROVISION.CLASS
+         CALL UPDATE.CLASS.LIST(CLASS.TYPE, TRUE)
+      END
+      RETURN
+
+UPDATE.REIMBURSING.CLASS:
+      RETURN
+
+INIT.ACTIVITY:
+      BEGIN CASE
+         CASE IMPORT.LC AND NOT(COL.FLG)
+            DR.ADV.NO = 'LC-4801':VM:'LC-4814':VM:'LC-4815'
+            IF PROVIS.SET THEN
+               DR.ADV.NO := VM : 'LC-4817'
+               GOSUB RAISE.PROVISION.CLASS
+            END
+         CASE IMPORT.LC AND COL.FLG
+            DR.ADV.NO = 'LC-4201':VM:'LC-4215'
+         CASE EXPORT.LC AND NOT(COL.FLG)
+            DR.ADV.NO = 'LC-4401':VM:'LC-4414':VM:'LC-4415'
+            IF MT742.SET THEN
+               DR.ADV.NO := VM : 'LC-4416'
+               CALL UPDATE.CLASS.LIST("REIMBURSING", TRUE)
+            END
+         CASE EXPORT.LC AND COL.FLG
+            DR.ADV.NO = 'LC-4101':VM:'LC-4115'
+      END CASE
+      RETURN
+
+INITIALIZE:
+      FN.ADV = 'F.EB.ADVICES'
+      F.ADV = ''
+      CALL OPF(FN.ADV, F.ADV)
+
+      FN$NAU.ADV = 'F.EB.ADVICES$NAU'
+      F$NAU.ADV = ''
+      CALL OPF(FN$NAU.ADV, F$NAU.ADV)
+
+      FN.DRAW.SCH = 'F.DRAW.SCHEDULES'
+      F.DRAW.SCH = ''
+      CALL OPF(FN.DRAW.SCH, F.DRAW.SCH)
+
+      IS.CUST = TRUE
+      IS.BANK = FALSE
+      BASIC.MSG = "BASIC.MESSAGE":FM:"NOTIFICATION":FM:"USER.DEFINE1"
+      CALL INIT.CLASS.MSG(BASIC.MSG)
+      RETURN
+
+   END

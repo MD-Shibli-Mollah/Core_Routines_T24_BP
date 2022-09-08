@@ -1,0 +1,103 @@
+* @ValidationCode : N/A
+* @ValidationInfo : Timestamp : 19 Jan 2021 11:14:56
+* @ValidationInfo : Encoding : Cp1252
+* @ValidationInfo : User Name : N/A
+* @ValidationInfo : Nb tests success : N/A
+* @ValidationInfo : Nb tests failure : N/A
+* @ValidationInfo : Rating : N/A
+* @ValidationInfo : Coverage : N/A
+* @ValidationInfo : Strict flag : N/A
+* @ValidationInfo : Bypass GateKeeper : false
+* @ValidationInfo : Compiler Version : N/A
+* @ValidationInfo : Copyright Temenos Headquarters SA 1993-2021. All rights reserved.
+
+* Version 2 27/02/01  GLOBUS Release No. 200508 30/06/05
+*-----------------------------------------------------------------------------
+* <Rating>89</Rating>
+*-----------------------------------------------------------------------------
+    $PACKAGE LC.Foundation
+      SUBROUTINE CONV.DISCOUNT.G11.2.00(DR.ID,DR.REC,DR.FILE)
+
+
+* 11/08/03 - CI_10011644
+*            Removed the insert I_F.LC.DISCOUNT.BALANCES file and
+*            replaced with EQUATES as it corrupted LDB from G12.1.00
+*            onwards.
+*
+* 14/10/03 - CI_10013580
+*            Included DIS.AMORT.TO.DTE and LD.AMORT.TO.DTE flds
+
+
+*********************************************************************
+$INSERT I_COMMON
+$INSERT I_EQUATE
+*******************************************************************
+      EQUATE TF.DR.DOCUMENT.AMOUNT TO 3
+      EQUATE TF.DR.DRAW.CURRENCY TO 2
+      EQUATE TF.DR.DIS.PARTY.CHRD TO 90
+      EQUATE TF.DR.DISCOUNT.RATE TO 13
+      EQUATE TF.DR.DISCOUNT.AMT TO 14
+      EQUATE TF.DR.LOAD.RATE TO 15
+      EQUATE TF.DR.LOAD.AMOUNT TO 16
+      EQUATE TF.DR.DIS.AMORT.TO.DTE TO 77
+      EQUATE TF.DR.LD.AMORT.TO.DTE TO 79
+      EQUATE TF.DR.DRAWING.TYPE TO 1
+      EQUATE TF.DR.VALUE.DATE TO 11
+      EQUATE TF.DR.MATURITY.REVIEW TO 7
+      EQUATE TF.DR.DISC.EFF.DATE TO 169
+
+      EQU DISC.BAL.DOCUMENT.AMOUNT TO 1
+      EQU DISC.BAL.DRAW.CURRENCY TO 2
+      EQU DISC.BAL.DISC.PARTY.CHRG TO 3
+      EQU DISC.BAL.DISCOUNT.RATE TO 4
+      EQU DISC.BAL.DISCOUNT.AMT TO 5
+      EQU DISC.BAL.LOAD.RATE TO 6
+      EQU DISC.BAL.LOAD.AMOUNT TO 7
+      EQU DISC.BAL.DIS.AMORT.TO.DTE TO 8
+      EQU DISC.BAL.LD.AMORT.TO.DTE TO 9
+      EQU DISC.BAL.START.DATE TO 11
+      EQU DISC.BAL.DISC.RATE TO 12
+      EQU DISC.BAL.DISCOUNT.AMOUNT TO 13
+      EQU DISC.BAL.LD.RATE TO 14
+      EQU DISC.BAL.LOAD.AMT TO 15
+      EQU DISC.BAL.END.DATE TO 16
+      EQU DISC.BAL.NEXT.AMEND.NO TO 17
+
+      IF FILE.TYPE NE 1 THEN RETURN      ; *GB0100479
+      F.LC.DISCOUNT.BALANCES = ''
+      CALL OPF("F.LC.DISCOUNT.BALANCES",F.LC.DISCOUNT.BALANCES)
+*
+      IF DR.REC<TF.DR.DRAWING.TYPE> MATCHES 'AC':VM:'DP' THEN
+         IF DR.REC<TF.DR.DISCOUNT.AMT> NE '' OR DR.REC<TF.DR.LOAD.AMOUNT> NE '' THEN
+            DR.REC<TF.DR.DISC.EFF.DATE> = DR.REC<TF.DR.VALUE.DATE>
+            GOSUB BUILD.DISCOUNT.BALANCES
+         END
+      END
+*
+      RETURN
+************************************************************************
+BUILD.DISCOUNT.BALANCES:
+
+      R$DISCOUNT.BALANCES = ''
+      R$DISCOUNT.BALANCES<DISC.BAL.DOCUMENT.AMOUNT> = DR.REC<TF.DR.DOCUMENT.AMOUNT>
+      R$DISCOUNT.BALANCES<DISC.BAL.DRAW.CURRENCY> = DR.REC<TF.DR.DRAW.CURRENCY>
+      R$DISCOUNT.BALANCES<DISC.BAL.DISC.PARTY.CHRG> = DR.REC<TF.DR.DIS.PARTY.CHRD>
+      R$DISCOUNT.BALANCES<DISC.BAL.DISCOUNT.RATE> = DR.REC<TF.DR.DISCOUNT.RATE>
+      R$DISCOUNT.BALANCES<DISC.BAL.DISCOUNT.AMT > = DR.REC<TF.DR.DISCOUNT.AMT>
+      R$DISCOUNT.BALANCES<DISC.BAL.LOAD.RATE> = DR.REC<TF.DR.LOAD.RATE>
+      R$DISCOUNT.BALANCES<DISC.BAL.LOAD.AMOUNT> = DR.REC<TF.DR.LOAD.AMOUNT>
+      R$DISCOUNT.BALANCES<DISC.BAL.START.DATE> = DR.REC<TF.DR.VALUE.DATE>
+      R$DISCOUNT.BALANCES<DISC.BAL.DISC.RATE> = DR.REC<TF.DR.DISCOUNT.RATE>
+*CI_13580 - Included DIS.AMRT.TO.DTE & LD.AMRT.TO.DTE
+      R$DISCOUNT.BALANCES<DISC.BAL.DIS.AMORT.TO.DTE> = DR.REC<TF.DR.DIS.AMORT.TO.DTE>
+      R$DISCOUNT.BALANCES<DISC.BAL.LD.AMORT.TO.DTE> = DR.REC<TF.DR.LD.AMORT.TO.DTE>
+      R$DISCOUNT.BALANCES<DISC.BAL.DISCOUNT.AMOUNT> = DR.REC<TF.DR.DISCOUNT.AMT>
+      R$DISCOUNT.BALANCES<DISC.BAL.LD.RATE> = DR.REC<TF.DR.LOAD.RATE>
+      R$DISCOUNT.BALANCES<DISC.BAL.LOAD.AMT> = DR.REC<TF.DR.LOAD.AMOUNT>
+      R$DISCOUNT.BALANCES<DISC.BAL.END.DATE> = DR.REC<TF.DR.MATURITY.REVIEW>
+      R$DISCOUNT.BALANCES<DISC.BAL.NEXT.AMEND.NO> = '01'
+      CALL F.WRITE('F.LC.DISCOUNT.BALANCES',DR.ID,R$DISCOUNT.BALANCES)
+
+      RETURN
+*********************************************************************
+   END

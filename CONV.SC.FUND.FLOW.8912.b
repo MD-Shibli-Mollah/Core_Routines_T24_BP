@@ -1,0 +1,300 @@
+* @ValidationCode : N/A
+* @ValidationInfo : Timestamp : 19 Jan 2021 11:14:56
+* @ValidationInfo : Encoding : Cp1252
+* @ValidationInfo : User Name : N/A
+* @ValidationInfo : Nb tests success : N/A
+* @ValidationInfo : Nb tests failure : N/A
+* @ValidationInfo : Rating : N/A
+* @ValidationInfo : Coverage : N/A
+* @ValidationInfo : Strict flag : N/A
+* @ValidationInfo : Bypass GateKeeper : false
+* @ValidationInfo : Compiler Version : N/A
+* @ValidationInfo : Copyright Temenos Headquarters SA 1993-2021. All rights reserved.
+
+*-----------------------------------------------------------------------------
+* <Rating>927</Rating>
+*-----------------------------------------------------------------------------
+* Version 4 16/05/01  GLOBUS Release No. 200512 09/12/05
+*
+*Modifications.
+*--------------
+*
+* 28/03/00 - GB0000612
+*            Jbase changes.
+*            R.SC.FUND.FLOW is a Dynamic array , It is changed to Dynamic
+*            array where ever it is used as Dimensioned array.
+*
+* 12/02/15 - Defect:1250871 / Task: 1252690
+*            !HUSHIT is not supported in TAFJ, hence changed to use HUSHIT(). 
+*
+    $PACKAGE SC.ScvCashAndFundFlow
+      SUBROUTINE CONV.SC.FUND.FLOW.8912
+*
+*     Last updated by dev.run (dev) at 10:44:14 on 09/08/79
+*
+**************************************************************
+* SUBROUTINE TO CONVERT EXISTING SC.FUND.FLOW RECORDS.
+*  ADD NEW FIELDS :-
+*  XX-AMT.ACC.SEC.CCY
+*************************************************************
+$INSERT I_COMMON
+$INSERT I_EQUATE
+$INSERT I_F.SECURITY.TRANSFER
+$INSERT I_F.POSITION.TRANSFER
+$INSERT I_F.SC.FUND.FLOW
+$INSERT I_F.SECURITY.MASTER
+$INSERT I_F.ACCOUNT
+**************************
+      PRINT @(10,10):'CONVERTING SC.FUND.FLOW RECORDS ......PLEASE WAIT'
+      EQU TRUE TO 1 ; EQU FALSE TO 0
+      CCY = '' ; RET.CODE = ''
+*     PPP = ''
+*
+      F.SECURITY.TRANSFER = ''
+      CALL OPF('F.SECURITY.TRANSFER',F.SECURITY.TRANSFER)
+      F.SECURITY.TRANSFER.H = ''
+      SECURITY.TRANSFER.FILE = 'F.SECURITY.TRANSFER$HIS'
+      CALL OPF(SECURITY.TRANSFER.FILE,F.SECURITY.TRANSFER.H)
+*
+      F.POSITION.TRANSFER = ''
+      CALL OPF('F.POSITION.TRANSFER',F.POSITION.TRANSFER)
+      F.POSITION.TRANSFER.H = ''
+      POSITION.TRANSFER.FILE = 'F.POSITION.TRANSFER$HIS'
+      CALL OPF(POSITION.TRANSFER.FILE,F.POSITION.TRANSFER.H)
+*
+      F.SECURITY.MASTER = ''
+      CALL OPF('F.SECURITY.MASTER',F.SECURITY.MASTER)
+      F.SECURITY.MASTER.H = ''
+      SECURITY.MASTER.FILE = 'F.SECURITY.MASTER$HIS'
+      CALL OPF(SECURITY.MASTER.FILE,F.SECURITY.MASTER.H)
+*
+      F.ACCOUNT = ''
+      CALL OPF('F.ACCOUNT',F.ACCOUNT)
+      F.ACCOUNT.H = ''
+      ACCOUNT.FILE = 'F.ACCOUNT$HIS'
+      CALL OPF(ACCOUNT.FILE,F.ACCOUNT.H)
+*
+      F.SC.FUND.FLOW = ''
+      YFILE.NAME1 = 'F.SC.FUND.FLOW'
+      CALL OPF(YFILE.NAME1,F.SC.FUND.FLOW)
+      GOSUB UPDATE.RECORDS               ; * LIVE RECORDS
+      YFILE.NAME2 = 'F.SC.FUND.FLOW$NAU'
+      CALL OPF(YFILE.NAME2,F.SC.FUND.FLOW)
+      GOSUB UPDATE.RECORDS               ; * UNAUTH. RECORDS
+      YFILE.NAME3 = 'F.SC.FUND.FLOW$HIS'
+      CALL OPF(YFILE.NAME3,F.SC.FUND.FLOW)
+      GOSUB UPDATE.RECORDS               ; * HISTORY RECORDS
+      RETURN
+*
+***************
+UPDATE.RECORDS:
+***************
+*
+      FOUND = TRUE
+      SELECT F.SC.FUND.FLOW TO 1
+      LOOP
+         READNEXT K.SC.FUND.FLOW FROM 1 ELSE NULL
+      WHILE K.SC.FUND.FLOW DO
+         READU R.SC.FUND.FLOW FROM F.SC.FUND.FLOW,K.SC.FUND.FLOW ELSE
+            E = 'FUND FLOW RECORD "':K.SC.FUND.FLOW:'" MISING FROM FILE'
+            GOTO FATAL.ERR
+         END
+         NO.OF.FIELDS = COUNT(R.SC.FUND.FLOW<1>,VM) + (R.SC.FUND.FLOW<1> # '')   ; * GB0000612
+*
+         FOR I = 1 TO NO.OF.FIELDS
+            IF R.SC.FUND.FLOW<1,I>[1,4] = 'SECT' THEN
+               K.SECURITY.TRANSFER = R.SC.FUND.FLOW<1,I>
+               GOSUB GET.SEC.TRANS
+            END ELSE
+               IF R.SC.FUND.FLOW<1,I>[1,4] = 'POST' THEN
+                  K.POSITION.TRANSFER = FIELD(R.SC.FUND.FLOW<1,I>,'.',1)
+                  GOSUB GET.POS.TRANS
+               END
+            END
+            FOUND = TRUE
+         NEXT I
+*
+         WRITE R.SC.FUND.FLOW TO F.SC.FUND.FLOW,K.SC.FUND.FLOW
+*        PRINT  @(10,10) : 'RECORD ' : R.SC.FUND.FLOW
+*        INPUT PPP
+      REPEAT
+      RETURN
+*
+GET.SEC.TRANS:
+*
+      READ R.SECURITY.TRANSFER FROM F.SECURITY.TRANSFER,K.SECURITY.TRANSFER ELSE
+*
+*  IF NOT FOUND READ SECURITY.TRANSFER HISTORY FILE
+*
+         GOSUB GET.SEC.TRANS.HIS
+         IF FOUND THEN
+            IF R.SECURITY.TRANSFER<SC.STR.BR.NET.AMT> THEN
+               K.ACCOUNT = R.SC.FUND.FLOW<5,I>
+               GOSUB GET.ACC.TRANS
+               IF FOUND THEN
+                  R.SC.FUND.FLOW<9,I> = CCY
+               END
+            END ELSE
+               CCY = R.SECURITY.TRANSFER<SC.STR.SECURITY.CCY>
+               R.SC.FUND.FLOW<9,I> = CCY
+            END
+         END
+         RETURN
+      END
+      IF R.SECURITY.TRANSFER<SC.STR.BR.NET.AMT> THEN
+         K.ACCOUNT = R.SC.FUND.FLOW<5,I>
+         GOSUB GET.ACC.TRANS
+         IF FOUND THEN
+            R.SC.FUND.FLOW<9,I> = CCY
+         END
+      END ELSE
+         CCY = R.SECURITY.TRANSFER<SC.STR.SECURITY.CCY>
+         R.SC.FUND.FLOW<9,I> = CCY
+      END
+      RETURN
+*
+GET.POS.TRANS:
+*
+*  READ POSITION.TRANSFER LIVE FILE
+*
+      READ R.POSITION.TRANSFER FROM F.POSITION.TRANSFER,K.POSITION.TRANSFER ELSE
+*
+*  IF NOT FOUND READ POSITION.TRANSFER HISTORY FILE
+*
+         GOSUB GET.POS.TRANS.HIS
+         IF FOUND THEN
+            K.SECURITY.MASTER = R.POSITION.TRANSFER<SC.PST.SECURITY.CODE>
+            GOSUB GET.SEC.MASTER.TRANS
+            IF FOUND THEN
+               R.SC.FUND.FLOW<9,I> = CCY
+            END
+         END
+         RETURN
+      END
+*
+      K.SECURITY.MASTER = R.POSITION.TRANSFER<SC.PST.SECURITY.CODE>
+      GOSUB GET.SEC.MASTER.TRANS
+      IF FOUND THEN
+         R.SC.FUND.FLOW<9,I> = CCY
+      END
+      RETURN
+*
+GET.ACC.TRANS:
+*
+*  READ ACCOUNT LIVE FILE
+*
+      READ R.ACCOUNT FROM F.ACCOUNT,K.ACCOUNT ELSE
+*
+*  IF NOT FOUND READ ACCOUNT HISTORY FILE
+*
+         GOSUB GET.ACC.TRANS.HIS
+         IF FOUND THEN
+            CCY = R.ACCOUNT<AC.CURRENCY>
+         END
+         RETURN
+      END
+      CCY = R.ACCOUNT<AC.CURRENCY>
+      RETURN
+*
+GET.SEC.MASTER.TRANS:
+*
+* READ SEC.MASTER FILE
+*
+      READ R.SECURITY.MASTER FROM F.SECURITY.MASTER,K.SECURITY.MASTER ELSE
+*
+*  IF NOT FOUND READ SECURITY.MASTER HISTORY FILE
+*
+         GOSUB GET.SEC.MASTER.TRANS.HIS
+         IF FOUND THEN
+            CCY = R.SECURITY.MASTER<SC.SCM.SECURITY.CURRENCY>
+         END
+         RETURN
+      END
+      CCY = R.SECURITY.MASTER<SC.SCM.SECURITY.CURRENCY>
+      RETURN
+*
+GET.SEC.TRANS.HIS:
+*
+      SEL2 = 'SSELECT ':SECURITY.TRANSFER.FILE:' WITH @ID LIKE ...':K.SECURITY.TRANSFER:'... TO 2'
+      CALL HUSHIT(1)
+      EXECUTE SEL2
+      RET.CODE = @SYSTEM.RETURN.CODE
+      CALL HUSHIT(0)
+      IF RET.CODE LE 0 THEN FOUND = FALSE ; RETURN
+      COUNT.REC = RET.CODE
+      LOOP
+         READNEXT K.SECURITY.TRANSFER FROM 2 ELSE NULL
+      WHILE K.SECURITY.TRANSFER DO
+         READ R.SECURITY.TRANSFER FROM F.SECURITY.TRANSFER.H,K.SECURITY.TRANSFER ELSE
+            PRINT 'MISSING TRANS HIST RECORD ':K.SECURITY.TRANSFER
+            FOUND = FALSE
+         END
+      REPEAT
+      RETURN
+*
+GET.POS.TRANS.HIS:
+*
+      SEL2 = 'SSELECT ':POSITION.TRANSFER.FILE:' WITH @ID LIKE ...':K.POSITION.TRANSFER:'... TO 2'
+      CALL HUSHIT(1)
+      EXECUTE SEL2
+      RET.CODE = @SYSTEM.RETURN.CODE
+      CALL HUSHIT(0)
+      IF RET.CODE LE 0 THEN FOUND = FALSE ; RETURN
+      COUNT.REC = RET.CODE
+      LOOP
+         READNEXT K.POSITION.TRANSFER FROM 2 ELSE NULL
+      WHILE K.POSITION.TRANSFER DO
+         READ R.POSITION.TRANSFER FROM F.POSITION.TRANSFER.H,K.POSITION.TRANSFER ELSE
+            PRINT 'MISSING TRANS HIST RECORD ':K.POSITION.TRANSFER
+            FOUND = FALSE
+         END
+      REPEAT
+      RETURN
+*
+GET.ACC.TRANS.HIS:
+*
+      SEL3 = 'SSELECT ':ACCOUNT.FILE:' WITH @ID LIKE ...':K.ACCOUNT:'... TO 3'
+      CALL HUSHIT(1)
+      EXECUTE SEL3
+      RET.CODE = @SYSTEM.RETURN.CODE
+      CALL HUSHIT(0)
+      IF RET.CODE LE 0 THEN FOUND = FALSE ; RETURN
+      COUNT.REC = RET.CODE
+      LOOP
+         READNEXT K.ACCOUNT FROM 3 ELSE NULL
+      WHILE K.ACCOUNT DO
+         READ R.ACCOUNT FROM F.ACCOUNT.H,K.ACCOUNT ELSE
+            PRINT 'MISSING TRANS HIST RECORD ':K.ACCOUNT
+            FOUND = FALSE
+         END
+      REPEAT
+      RETURN
+*
+GET.SEC.MASTER.TRANS.HIS:
+*
+      SEL3 = 'SSELECT ':SECURITY.MASTER.FILE:' WITH @ID LIKE ...':K.SECURITY.MASTER:'... TO 3'
+      CALL HUSHIT(1)
+      EXECUTE SEL3
+      RET.CODE = @SYSTEM.RETURN.CODE
+      CALL HUSHIT(0)
+      IF RET.CODE LE 0 THEN RETURN
+      COUNT.REC = RET.CODE
+      LOOP
+         READNEXT K.SECURITY.MASTER FROM 3 ELSE NULL
+      WHILE K.SECURITY.MASTER DO
+         READ R.SECURITY.MASTER FROM F.SECURITY.MASTER.H,K.SECURITY.MASTER ELSE
+            PRINT 'MISSING TRANS HIST RECORD ':K.SECURITY.MASTER
+            FOUND = FALSE
+         END
+      REPEAT
+      RETURN
+*
+************
+FATAL.ERR:
+************
+      TEXT = E
+      CALL FATAL.ERROR('CONV.SC.FUND.FLOW.8912')
+********
+* END
+********
+   END
